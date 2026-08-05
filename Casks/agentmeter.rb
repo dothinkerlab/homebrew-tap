@@ -7,7 +7,7 @@ cask "agentmeter" do
   desc "Monitor AI coding quotas and API usage from the menu bar"
   homepage "https://github.com/dothinkerlab/AgentMeter"
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "AgentMeter.app"
 
