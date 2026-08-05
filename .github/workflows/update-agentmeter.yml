@@ -1,0 +1,108 @@
+name: Update AgentMeter Cask
+
+on:
+  repository_dispatch:
+    types: [agentmeter-release]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published AgentMeter tag, for example v1.7
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-agentmeter-cask
+  cancel-in-progress: false
+
+jobs:
+  validate-event:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.event.outputs.tag }}
+
+    steps:
+      - name: Validate dispatch source and tag
+        id: event
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_REPOSITORY: ${{ github.event.client_payload.repository }}
+          DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+          MANUAL_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "repository_dispatch" ]]; then
+            if [[ "$DISPATCH_REPOSITORY" != "dothinkerlab/AgentMeter" ]]; then
+              echo "Unexpected dispatch repository: $DISPATCH_REPOSITORY" >&2
+              exit 1
+            fi
+            TAG="$DISPATCH_TAG"
+          else
+            TAG="$MANUAL_TAG"
+          fi
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "Invalid release tag: $TAG" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  validate-cask:
+    needs: validate-event
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-26, macos-26-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out Tap
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Rebuild Cask metadata from published assets
+        shell: bash
+        run: ./scripts/update_agentmeter_cask.sh '${{ needs.validate-event.outputs.tag }}'
+
+      - name: Validate updated Cask
+        shell: bash
+        run: ./scripts/test_agentmeter_cask.sh
+
+  commit-update:
+    needs: [validate-event, validate-cask]
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out Tap
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Rebuild verified Cask metadata
+        id: update
+        shell: bash
+        run: ./scripts/update_agentmeter_cask.sh '${{ needs.validate-event.outputs.tag }}'
+
+      - name: Commit Cask update
+        if: steps.update.outputs.changed == 'true'
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.update.outputs.version }}
+          RELEASE_BUILD: ${{ steps.update.outputs.build }}
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Casks/agentmeter.rb
+          git commit -m "Update AgentMeter to $RELEASE_VERSION ($RELEASE_BUILD)"
+          git push origin HEAD:main
+
+      - name: Record idempotent update
+        if: steps.update.outputs.changed != 'true'
+        shell: bash
+        run: echo 'The Tap already contains this exact AgentMeter release.' >> "$GITHUB_STEP_SUMMARY"
