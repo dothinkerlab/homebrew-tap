@@ -14,7 +14,7 @@ cleanup() {
 trap cleanup EXIT
 
 brew untap "$TAP_NAME" >/dev/null 2>&1 || true
-brew tap "$TAP_NAME" "$REPO_ROOT"
+brew tap "$TAP_NAME" "file://$REPO_ROOT"
 brew style --cask "$CASK_NAME"
 brew audit --strict --online --cask "$CASK_NAME"
 
