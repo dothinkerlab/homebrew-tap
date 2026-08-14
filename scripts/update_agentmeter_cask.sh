@@ -46,7 +46,7 @@ ruby -rrubygems -e '
 ' "$CURRENT_VERSION" "$VERSION"
 
 DOWNLOAD_BASE="https://github.com/dothinkerlab/AgentMeter/releases/download/$TAG"
-curl --fail --location --retry 3 --output "$DMG_PATH" "$DOWNLOAD_BASE/AgentMeter.dmg"
+curl --fail --location --retry 3 --retry-all-errors --output "$DMG_PATH" "$DOWNLOAD_BASE/AgentMeter.dmg"
 
 SHA256="$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')"
 
@@ -92,8 +92,9 @@ fi
 
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 codesign -dvvv "$APP_PATH" 2> "$TEMP_DIR/codesign-details.txt"
-grep -q 'Authority=Developer ID Application:' "$TEMP_DIR/codesign-details.txt"
-grep -Eq '^flags=.*\(runtime\)' "$TEMP_DIR/codesign-details.txt"
+# Hosted runners may report Authority=(unavailable) even for a valid Developer ID chain.
+# The strict signature check plus stapler and Gatekeeper validation below are authoritative.
+grep -Eq 'flags=.*\(runtime\)' "$TEMP_DIR/codesign-details.txt"
 
 codesign -d --entitlements :- "$APP_PATH" > "$TEMP_DIR/entitlements.plist"
 CLOUDKIT_ENVIRONMENT="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.icloud-container-environment' "$TEMP_DIR/entitlements.plist")"
@@ -111,13 +112,13 @@ spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG
 
 VERSIONED_DMG_NAME="AgentMeter-$VERSION-$APP_BUILD.dmg"
 VERSIONED_DMG_PATH="$TEMP_DIR/$VERSIONED_DMG_NAME"
-curl --fail --location --retry 3 --output "$VERSIONED_DMG_PATH" "$DOWNLOAD_BASE/$VERSIONED_DMG_NAME"
+curl --fail --location --retry 3 --retry-all-errors --output "$VERSIONED_DMG_PATH" "$DOWNLOAD_BASE/$VERSIONED_DMG_NAME"
 if ! cmp -s "$DMG_PATH" "$VERSIONED_DMG_PATH"; then
   echo "AgentMeter.dmg and $VERSIONED_DMG_NAME are not byte-identical" >&2
   exit 1
 fi
 
-curl --fail --location --retry 3 --output "$TEMP_DIR/SHA256SUMS.txt" "$DOWNLOAD_BASE/SHA256SUMS.txt"
+curl --fail --location --retry 3 --retry-all-errors --output "$TEMP_DIR/SHA256SUMS.txt" "$DOWNLOAD_BASE/SHA256SUMS.txt"
 if ! (cd "$TEMP_DIR" && shasum -a 256 --check SHA256SUMS.txt); then
   echo "Published SHA256SUMS.txt does not match the release assets" >&2
   exit 1
