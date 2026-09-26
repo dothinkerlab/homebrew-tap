@@ -23,4 +23,6 @@ jobs:
 
       - name: Validate AgentMeter Cask
         shell: bash
+        env:
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
         run: ./scripts/test_agentmeter_cask.sh
