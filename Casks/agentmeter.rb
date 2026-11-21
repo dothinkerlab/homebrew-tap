@@ -1,6 +1,6 @@
 cask "agentmeter" do
-  version "2.3"
-  sha256 "964ee5657ad6a8228cfd5d3094c23df04fd74a8a825afcb871e4062f1b88b8a7"
+  version "2.4.0"
+  sha256 "9a618096baa761a64bf2f68475f45b25d65093e3d8bf9cb3945a9eeba54d2dc5"
 
   url "https://github.com/dothinkerlab/AgentMeter/releases/download/v#{version}/AgentMeter.dmg"
   name "AgentMeter"
